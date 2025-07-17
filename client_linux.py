@@ -100,10 +100,10 @@ def main():
         success = connect_and_run()
         if not success:
             print("等待1分钟后重试连接...")
-            time.sleep(60)  # 每分钟重连一次
+            time.sleep(10)  # 每分钟重连一次
         else:
             print("连接断开，1分钟后重试...")
-            time.sleep(60)
+            time.sleep(10)
 
 if __name__ == '__main__':
     main()

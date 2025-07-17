@@ -2,6 +2,7 @@ import serial
 import socket
 import threading
 import time
+import struct  # 用于解包包头
 
 SERIAL_PORT = 'COM17'      # 修改成你的实际串口
 BAUDRATE = 9600           # 和交换机一致
@@ -14,13 +15,16 @@ clients_lock = threading.Lock()  # 用于同步访问clients列表
 
 def serial_reader(ser):
     interval = 1.0/REFRESH_RATE
+    print(f"[串口] 正在读取串口数据，刷新率: {REFRESH_RATE} FPS, 间隔: {interval:.3f} 秒")
     while True:
         try:
             if ser.in_waiting:
                 data = ser.read(ser.in_waiting)
+                print(data)
                 if data:
                     with clients_lock:
                         for client_sock in clients[:]:
+                            
                             try:
                                 client_sock.sendall(data)
                             except Exception as e:
@@ -37,14 +41,35 @@ def serial_reader(ser):
             time.sleep(1)
 
 def socket_reader(ser, client_sock, addr):
+    """处理来自客户端的数据，解析包头，仅写入payload部分到串口"""
+    buffer = b''
+    last_seq = None
     try:
         while True:
             data = client_sock.recv(4096)
             if not data:
                 print(f"[网络] 客户端 {addr} 断开")
                 break
-            ser.write(data)
-            print("<<", data, end="\n")
+            buffer += data
+            # 处理每个包
+            while len(buffer) >= 4:
+                # 解析2字节序号+2字节长度
+                seq, length = struct.unpack('!HH', buffer[:4])
+                if len(buffer) < 4 + length:
+                    break  # 数据还没收齐，等待下次
+                payload = buffer[4:4+length]
+                # 检查序号是否连续
+                if last_seq is not None and seq != ((last_seq + 1) % 65536):
+                    print(f"警告：序号异常！前序号: {last_seq} 当前序号: {seq}")
+                last_seq = seq
+                # 检查长度是否正确
+                if len(payload) != length:
+                    print(f"警告：长度异常！包头长度: {length} 实际长度: {len(payload)}")
+                # 只将payload部分写入串口
+                ser.write(payload)
+                print("<<",payload,end="")
+                print(f"[收到] 序号: {seq} 长度: {length}")
+                buffer = buffer[4+length:]  # 移除已处理部分
     except Exception as e:
         print(f"[网络] 客户端 {addr} 读取异常: {e}")
     finally:
