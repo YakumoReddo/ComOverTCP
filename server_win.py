@@ -13,8 +13,13 @@ REFRESH_RATE = 30 # 刷新率（帧/秒）
 clients = []              # 保存所有连接的客户端
 clients_lock = threading.Lock()  # 用于同步访问clients列表
 
+# 全局发送序号
+send_seq = 0
+send_seq_lock = threading.Lock()
+
 def serial_reader(ser):
     interval = 1.0/REFRESH_RATE
+    global send_seq
     print(f"[串口] 正在读取串口数据，刷新率: {REFRESH_RATE} FPS, 间隔: {interval:.3f} 秒")
     while True:
         try:
@@ -22,11 +27,13 @@ def serial_reader(ser):
                 data = ser.read(ser.in_waiting)
                 print(data)
                 if data:
+                    with send_seq_lock:
+                        packet = struct.pack('!HH', send_seq, len(data)) + data
+                        send_seq = (send_seq + 1) % 65536
                     with clients_lock:
                         for client_sock in clients[:]:
-                            
                             try:
-                                client_sock.sendall(data)
+                                client_sock.sendall(packet)
                             except Exception as e:
                                 print(f"[串口] 发送到客户端异常: {e}")
                                 print(f"[串口] 移除掉线客户端")
