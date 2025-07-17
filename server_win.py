@@ -7,17 +7,20 @@ SERIAL_PORT = 'COM17'      # 修改成你的实际串口
 BAUDRATE = 9600           # 和交换机一致
 SERVER_PORT = 4000        # 监听的端口号
 
+REFRESH_RATE = 30 # 刷新率（帧/秒）
+
 clients = []              # 保存所有连接的客户端
 clients_lock = threading.Lock()  # 用于同步访问clients列表
 
 def serial_reader(ser):
+    interval = 1.0/REFRESH_RATE
     """不断高频率地读串口并广播到所有客户端"""
     while True:
         try:
             if ser.in_waiting:
                 data = ser.read(ser.in_waiting)
                 if data:
-                    print(data, end="")  # 打印串口收到的数据
+                    # print(data, end="")  # 打印串口收到的数据
                     # 广播到所有客户端
                     with clients_lock:
                         for client_sock in clients[:]:
@@ -31,9 +34,7 @@ def serial_reader(ser):
                                     client_sock.close()
                                 except:
                                     pass
-                    time.sleep(0.001)
-            else:
-                time.sleep(0.001)
+            time.sleep(interval)
         except Exception as e:
             print(f"[串口] 读取异常: {e}")
             time.sleep(1)
