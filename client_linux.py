@@ -54,7 +54,9 @@ def socket_to_serial(ser, sock):
                 # 检查长度是否正确
                 if len(payload) != length:
                     print(f"警告：长度异常！包头长度: {length} 实际长度: {len(payload)}")
-                ser.write(payload)
+                serlen = ser.write(payload)
+                if serlen!=length:
+                    print(f"警告：串口写入长度不匹配！期望: {length} 实际: {serlen}")
                 print(f"[收到] 序号: {seq} 长度: {length}")
                 buffer = buffer[4+length:]  # 移除已处理数据
         except Exception as e:
